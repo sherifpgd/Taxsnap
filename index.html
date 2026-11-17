@@ -373,6 +373,7 @@ main thead th { white-space: nowrap; letter-spacing: .03em; }
             </div>
             <div id="loginError" class="text-xs text-rose-600 font-semibold hidden"></div>
             <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-sm font-bold shadow-md transition">Sign In</button>
+            <p class="text-center"><button type="button" id="forgotLoginBtn" onclick="forgotLogin()" class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline">Forgot password?</button></p>
         </form>
     </div>
 
@@ -5738,6 +5739,24 @@ async function doLogin(e) {
         const card = $('loginCard'); card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
     }
 }
+/** Forgot password: clears only the saved login on this browser so the default login works again. Data is not touched. */
+async function forgotLogin() {
+    const s = Auth.stored();
+    if (!s) return UI.dialog({ title: 'Forgot password', html: `<p>This browser still uses the default login, username <b>${esc(Auth.DEFAULT_USER)}</b>. If you changed it somewhere else (another browser, device or the offline file), that change does not apply here.</p>`, buttons: [{ label: 'OK', value: true, variant: 'primary' }] });
+    const ok = await UI.dialog({
+        title: 'Reset login on this browser?',
+        html: `<p>This removes the saved login (username <b>${esc(s.user)}</b>) from this browser only. You can then sign in with the default username <b>${esc(Auth.DEFAULT_USER)}</b> and the default password, and set a new one in Workflow Settings.</p><p class="mt-2">Your clients, invoices and other data are not changed.</p>`,
+        typeToConfirm: 'RESET',
+        buttons: [{ label: 'Cancel', value: false }, { label: 'Reset login', value: true, variant: 'danger' }]
+    });
+    if (ok !== true) return;
+    try { localStorage.removeItem(KEYS.creds); } catch (x) { /* blocked */ }
+    Auth.fails = 0; Auth.lockedUntil = 0;
+    Audit.log('Login reset from sign-in screen', s.user, ''); Local.save();
+    setVal('loginUser', Auth.DEFAULT_USER); setVal('loginPass', ''); $('loginError').classList.add('hidden');
+    UI.toast('Login reset. Sign in with the default login, then change it in Workflow Settings.', { duration: 8000 });
+    $('loginPass').focus();
+}
 function doLogout() { try { sessionStorage.removeItem('taxsnap_auth'); } catch (x) { /* blocked */ } document.body.classList.add('locked'); }
 async function changeCredentials(e) {
     e.preventDefault();
@@ -5958,7 +5977,7 @@ Object.assign(window, {
     openSupplierModal, closeSupplierModal, toggleSupplierClientSelect, saveSupplierRecord, editSupplier: id => openSupplierModal(id),
     clearAllPurchases: () => clearDataset('purchases'), clearAllSales: () => clearDataset('sales'), clearAllClients: () => clearDataset('clients'), clearAllSuppliers: () => clearDataset('suppliers'),
     downloadManualBackup, restoreJsonBackup, restoreManualBackup, gdSaveClientId, gdToggleAuto, gdSaveBackup, gdRestoreBackup, saveCloudConfig: () => CloudSettings.save(),
-    doLogin, doLogout, changeCredentials,
+    doLogin, doLogout, changeCredentials, forgotLogin,
     renderBilling, renderCorpTax, recordPayment: () => Billing.recordPayment(window.activeClient), newFeeInvoice: () => FeeInvoices.edit(null), generateRetainers: () => FeeInvoices.retainers(),
     importBankStatement: e => BankImport.importFile(e), bulkPdf: () => BulkPdf.run(), bulkReminders: () => Messages.bulk(),
     statementPdf: () => Billing.statementPdf(val('statementClient') || window.activeClient), statementPrint: () => Print.statement(val('statementClient') || window.activeClient),
